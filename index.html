@@ -4,51 +4,109 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Quote Calculator</title>
+    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Custom CSS -->
     <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-bg: #f8f9fa;
+            --dark-text: #2c3e50;
+        }
+        
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--dark-text);
         }
+        
         .calculator-card {
             background: white;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
+            transition: transform 0.3s ease;
         }
+        
+        .calculator-card:hover {
+            transform: translateY(-5px);
+        }
+        
         .header {
-            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
             color: white;
             padding: 25px;
             text-align: center;
+            position: relative;
+            overflow: hidden;
         }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,0 L100,0 L100,100 Z" fill="rgba(255,255,255,0.1)"/></svg>');
+            background-size: cover;
+        }
+        
+        .header h1 {
+            position: relative;
+            z-index: 1;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
         .form-section {
             padding: 30px;
         }
+        
         .result-section {
-            background: #f8f9fa;
+            background: var(--light-bg);
             padding: 30px;
-            border-top: 3px solid #3498db;
+            border-top: 3px solid var(--primary-color);
             display: none;
+            animation: slideIn 0.5s ease;
         }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
         .btn-calculate {
-            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            background: linear-gradient(135deg, var(--secondary-color) 0%, var(--primary-color) 100%);
             color: white;
             border: none;
             padding: 12px 30px;
             font-size: 18px;
             border-radius: 10px;
             transition: all 0.3s;
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
+        
         .btn-calculate:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(52, 152, 219, 0.3);
         }
+        
+        .btn-calculate:active {
+            transform: translateY(0);
+        }
+        
         .panel-badge {
             background: #e3f2fd;
             color: #1565c0;
@@ -57,69 +115,214 @@
             margin: 5px;
             display: inline-block;
             font-weight: 500;
+            border: 1px solid #bbdefb;
+            transition: all 0.2s;
         }
+        
+        .panel-badge:hover {
+            background: #bbdefb;
+            transform: scale(1.05);
+        }
+        
         .cost-item {
-            border-left: 4px solid #3498db;
+            border-left: 4px solid var(--primary-color);
             padding-left: 15px;
             margin-bottom: 15px;
+            background: white;
+            padding: 12px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
+        
         .final-price {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #2c3e50;
+            font-size: 2.8rem;
+            font-weight: 800;
+            color: var(--secondary-color);
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.1);
         }
+        
         .loading {
             display: none;
             text-align: center;
-            padding: 20px;
+            padding: 40px;
         }
+        
         .spinner {
-            width: 50px;
-            height: 50px;
+            width: 60px;
+            height: 60px;
             border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
+            border-top: 5px solid var(--primary-color);
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto;
         }
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
+        .hubspot-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(255,255,255,0.2);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: var(--secondary-color);
+            margin-bottom: 8px;
+        }
+        
+        .form-control, .form-select {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px 15px;
+            transition: all 0.3s;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-online {
+            background-color: var(--success-color);
+        }
+        
+        .status-offline {
+            background-color: var(--danger-color);
+        }
+        
+        .api-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-size: 12px;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .tooltip-icon {
+            color: var(--primary-color);
+            cursor: help;
+            margin-left: 5px;
+        }
+        
+        .dimension-preview {
+            text-align: center;
+            padding: 15px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            border-radius: 10px;
+            margin-top: 10px;
+            display: none;
+        }
+        
+        .dimension-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+        
+        @media (max-width: 768px) {
+            .calculator-card {
+                border-radius: 15px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .form-section, .result-section {
+                padding: 20px;
+            }
+            
+            .final-price {
+                font-size: 2.2rem;
+            }
+        }
     </style>
 </head>
 <body>
+    <!-- API Status Indicator -->
+    <div class="api-status" id="apiStatus">
+        <span class="status-indicator status-offline" id="statusDot"></span>
+        <span id="statusText">API: Checking...</span>
+    </div>
+
     <div class="calculator-card">
         <!-- Header -->
         <div class="header">
-            <h1><i class="bi bi-calculator"></i> Sign Quote Calculator</h1>
-            <p class="mb-0">Instant digital sign pricing for your clients</p>
+            <div class="hubspot-badge">
+                <i class="fab fa-hubspot"></i> HubSpot Integrated
+            </div>
+            <h1><i class="fas fa-calculator"></i> Digital Sign Quote Calculator</h1>
+            <p class="mb-0">Professional pricing for LED signage projects</p>
         </div>
 
         <!-- Input Form -->
         <div class="form-section">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label">Height (feet)</label>
-                    <input type="number" id="height" class="form-control" placeholder="e.g., 22" min="1" max="100">
+                    <label class="form-label">
+                        Height (feet) 
+                        <i class="fas fa-ruler-vertical tooltip-icon" title="Enter height between 1-100 feet"></i>
+                    </label>
+                    <input type="number" id="height" class="form-control" 
+                           placeholder="e.g., 22" min="1" max="100" step="0.1">
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Width (feet)</label>
-                    <input type="number" id="width" class="form-control" placeholder="e.g., 33" min="1" max="100">
+                    <label class="form-label">
+                        Width (feet)
+                        <i class="fas fa-ruler-horizontal tooltip-icon" title="Enter width between 1-100 feet"></i>
+                    </label>
+                    <input type="number" id="width" class="form-control" 
+                           placeholder="e.g., 33" min="1" max="100" step="0.1">
+                </div>
+                
+                <!-- Dimension Preview -->
+                <div class="col-12">
+                    <div class="dimension-preview" id="dimensionPreview">
+                        <span class="dimension-text" id="dimensionText">0' × 0' = 0 sq ft</span>
+                    </div>
                 </div>
                 
                 <div class="col-md-4">
-                    <label class="form-label">Resolution</label>
+                    <label class="form-label">
+                        Resolution
+                        <i class="fas fa-expand-alt tooltip-icon" title="Pixel pitch - smaller number = higher resolution"></i>
+                    </label>
                     <select id="resolution" class="form-select">
-                        <option value="P6">P6</option>
-                        <option value="P8">P8</option>
-                        <option value="P10">P10</option>
-                        <option value="P16">P16</option>
+                        <option value="P6">P6 - Standard Outdoor</option>
+                        <option value="P8">P8 - Large Format</option>
+                        <option value="P10">P10 - Billboard</option>
+                        <option value="P16">P16 - Super Size</option>
                     </select>
                 </div>
                 
                 <div class="col-md-4">
-                    <label class="form-label"># of Sides</label>
+                    <label class="form-label">
+                        # of Sides
+                        <i class="fas fa-layer-group tooltip-icon" 
+                           title="Single: One-sided sign | Double (M/S): Two sides, one message | Double (M/M): Two sides, different messages"></i>
+                    </label>
                     <select id="sides" class="form-select">
                         <option value="Single">Single</option>
                         <option value="Double (M/S)">Double (M/S)</option>
@@ -128,21 +331,36 @@
                 </div>
                 
                 <div class="col-md-4">
-                    <label class="form-label">Customer Type</label>
+                    <label class="form-label">
+                        Customer Type
+                        <i class="fas fa-users tooltip-icon" 
+                           title="Retail: 2.1x markup | Dealer: 1.65x markup"></i>
+                    </label>
                     <select id="customerType" class="form-select">
-                        <option value="Retail">Retail</option>
-                        <option value="Dealer">Dealer</option>
+                        <option value="Retail">Retail (2.1x)</option>
+                        <option value="Dealer">Dealer (1.65x)</option>
                     </select>
                 </div>
                 
                 <div class="col-12">
-                    <label class="form-label">Project Name (Optional)</label>
-                    <input type="text" id="projectName" class="form-control" placeholder="e.g., ABC Corp Main Sign">
+                    <label class="form-label">
+                        <i class="fas fa-project-diagram"></i> Project Name
+                    </label>
+                    <input type="text" id="projectName" class="form-control" 
+                           placeholder="e.g., ABC Corp Main Street Sign">
                 </div>
                 
+                <!-- Hidden HubSpot Context Fields -->
+                <input type="hidden" id="hubspotDealId">
+                <input type="hidden" id="hubspotContactId">
+                <input type="hidden" id="hubspotDealName">
+                
                 <div class="col-12 mt-4 text-center">
-                    <button class="btn btn-calculate" onclick="calculateQuote()">
-                        <i class="bi bi-lightning-charge"></i> Calculate Quote
+                    <button class="btn btn-calculate" onclick="calculateQuote()" id="calculateBtn">
+                        <i class="fas fa-bolt"></i> Calculate Quote
+                    </button>
+                    <button class="btn btn-outline-secondary ms-2" onclick="resetForm()">
+                        <i class="fas fa-redo"></i> Reset
                     </button>
                 </div>
             </div>
@@ -151,47 +369,81 @@
         <!-- Loading Spinner -->
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p class="mt-3">Calculating optimal panel configuration...</p>
+            <p class="mt-3">Optimizing panel configuration...</p>
+            <div class="progress mt-3" style="width: 80%; margin: 0 auto;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                     style="width: 100%"></div>
+            </div>
         </div>
 
         <!-- Results Section -->
         <div class="result-section" id="results">
             <div class="row">
                 <div class="col-md-8">
-                    <h3><i class="bi bi-file-text"></i> Quote Summary</h3>
+                    <h3><i class="fas fa-file-invoice-dollar"></i> Quote Summary</h3>
+                    
                     <div class="mb-4">
-                        <h5>Panel Configuration:</h5>
-                        <div id="panelDetails"></div>
+                        <h5><i class="fas fa-th-large"></i> Panel Configuration:</h5>
+                        <div id="panelDetails" class="mt-2"></div>
+                        <small class="text-muted mt-2 d-block">
+                            <i class="fas fa-info-circle"></i> Optimized for fewest panels with maximum uniformity
+                        </small>
                     </div>
                     
-                    <h5>Cost Breakdown:</h5>
+                    <h5><i class="fas fa-receipt"></i> Cost Breakdown:</h5>
                     <div class="cost-item">
-                        <strong>Panel Cost:</strong> $<span id="panelCost">0.00</span>
+                        <strong>Panel Cost (with 20% import tax):</strong> 
+                        $<span id="panelCost" class="float-end">0.00</span>
                     </div>
                     <div class="cost-item">
-                        <strong>Resolution Cost:</strong> $<span id="resolutionCost">0.00</span>
+                        <strong>Resolution Cost (with 20% import tax):</strong> 
+                        $<span id="resolutionCost" class="float-end">0.00</span>
                     </div>
                     <div class="cost-item">
-                        <strong>Sensor/Sender/Receiver:</strong> $<span id="sensorCost">0.00</span>
+                        <strong>Sensor/Sender/Receiver (with 20% import tax):</strong> 
+                        $<span id="sensorCost" class="float-end">0.00</span>
                     </div>
                     <div class="cost-item">
-                        <strong>Computer Cost:</strong> $<span id="computerCost">0.00</span>
+                        <strong>Computer Cost (no import tax):</strong> 
+                        $<span id="computerCost" class="float-end">0.00</span>
+                    </div>
+                    
+                    <div class="cost-item mt-4" style="border-left-color: var(--success-color);">
+                        <strong>Total Before Markup:</strong> 
+                        $<span id="totalBeforeMarkup" class="float-end">0.00</span>
+                    </div>
+                    <div class="cost-item" style="border-left-color: var(--warning-color);">
+                        <strong>Markup Applied (<span id="markupPercent">0%</span>):</strong> 
+                        <span id="markupMultiplier" class="float-end">0.00x</span>
                     </div>
                 </div>
                 
                 <div class="col-md-4 text-center">
                     <div class="final-price" id="finalPrice">$0.00</div>
                     <div class="mt-3">
-                        <p><strong>Total Panels:</strong> <span id="totalPanels" class="badge bg-primary">0</span></p>
-                        <p><strong>Total Area:</strong> <span id="totalArea">0</span> sq ft</p>
+                        <p><strong>Total Panels:</strong> 
+                            <span id="totalPanels" class="badge bg-primary fs-6">0</span>
+                        </p>
+                        <p><strong>Total Area:</strong> 
+                            <span id="totalArea">0</span> sq ft
+                        </p>
+                        <p><strong>Panels per Side:</strong> 
+                            <span id="panelsPerSide">0</span>
+                        </p>
+                        <p><strong>Quote ID:</strong> 
+                            <br><small id="quoteId" class="text-muted">Not generated</small>
+                        </p>
                     </div>
                     
                     <div class="mt-4">
-                        <button class="btn btn-success btn-lg" onclick="saveToHubSpot()">
-                            <i class="bi bi-save"></i> Save to HubSpot
+                        <button class="btn btn-success btn-lg w-100 mb-2" onclick="saveToHubSpot()" id="saveBtn">
+                            <i class="fas fa-save"></i> Save to HubSpot
                         </button>
-                        <button class="btn btn-outline-primary mt-2" onclick="resetForm()">
-                            <i class="bi bi-arrow-clockwise"></i> New Quote
+                        <button class="btn btn-outline-primary w-100 mb-2" onclick="exportQuote()">
+                            <i class="fas fa-download"></i> Export as PDF
+                        </button>
+                        <button class="btn btn-outline-secondary w-100" onclick="shareQuote()">
+                            <i class="fas fa-share-alt"></i> Share Quote
                         </button>
                     </div>
                 </div>
@@ -199,8 +451,9 @@
             
             <div class="mt-4">
                 <div class="alert alert-info">
-                    <i class="bi bi-info-circle"></i> 
-                    <strong>Note:</strong> Prices include 20% import tax where applicable. Computer cost is not taxed.
+                    <i class="fas fa-info-circle"></i> 
+                    <strong>Note:</strong> Prices include 20% import tax where applicable. 
+                    Computer cost is not taxed. This quote is valid for 30 days.
                 </div>
             </div>
         </div>
@@ -208,16 +461,62 @@
 
     <!-- Toast for notifications -->
     <div class="toast-container position-fixed bottom-0 end-0 p-3">
-        <div id="toast" class="toast" role="alert">
+        <div id="toast" class="toast" role="alert" data-bs-autohide="true" data-bs-delay="5000">
             <div class="toast-header">
-                <strong class="me-auto" id="toastTitle">Notification</strong>
+                <strong class="me-auto" id="toastTitle">
+                    <i class="fas fa-bell"></i> Notification
+                </strong>
                 <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
             </div>
             <div class="toast-body" id="toastMessage"></div>
         </div>
     </div>
 
+    <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Main App Script -->
     <script src="app.js"></script>
+    
+    <!-- HubSpot Context Script (for embedded mode) -->
+    <script>
+        // Listen for HubSpot context messages
+        window.addEventListener('message', function(event) {
+            // Security: Verify origin if needed
+            // if (event.origin !== 'https://app.hubspot.com') return;
+            
+            if (event.data.type === 'HUBSPOT_CONTEXT') {
+                console.log('HubSpot context received:', event.data);
+                
+                // Store HubSpot data
+                if (event.data.dealId) {
+                    document.getElementById('hubspotDealId').value = event.data.dealId;
+                    document.getElementById('saveBtn').innerHTML = 
+                        '<i class="fas fa-save"></i> Save to Deal #' + event.data.dealId;
+                }
+                
+                if (event.data.contactId) {
+                    document.getElementById('hubspotContactId').value = event.data.contactId;
+                }
+                
+                if (event.data.dealName) {
+                    document.getElementById('hubspotDealName').value = event.data.dealName;
+                    const projectInput = document.getElementById('projectName');
+                    if (!projectInput.value) {
+                        projectInput.value = 'Quote for ' + event.data.dealName;
+                    }
+                }
+                
+                // Show HubSpot mode indicator
+                showToast('HubSpot Connected', 'Quote will be saved to CRM', 'info');
+            }
+        });
+        
+        // If we're in an iframe, request context from parent
+        if (window.parent !== window) {
+            window.parent.postMessage({
+                type: 'REQUEST_HUBSPOT_CONTEXT'
+            }, '*');
+        }
+    </script>
 </body>
 </html>
