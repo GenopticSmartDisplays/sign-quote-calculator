@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>HubSpot Quote Calculator Embed</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+        }
+        
+        .hubspot-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .hubspot-header {
+            background: linear-gradient(135deg, #ff7a59 0%, #ff5a3c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .hubspot-header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        
+        .hubspot-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        
+        .hubspot-iframe-container {
+            background: white;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .hubspot-iframe-container iframe {
+            border: none;
+            width: 100%;
+            height: 800px;
+            display: block;
+        }
+        
+        .hubspot-actions {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .hubspot-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .hubspot-btn-primary {
+            background: #ff7a59;
+            color: white;
+        }
+        
+        .hubspot-btn-primary:hover {
+            background: #ff6b4a;
+        }
+        
+        .hubspot-btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        
+        .hubspot-btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .hubspot-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4f8;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            color: #2c3e50;
+        }
+        
+        .hubspot-info h3 {
+            margin-top: 0;
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="hubspot-container">
+        <div class="hubspot-header">
+            <h1>
+                <i class="fas fa-calculator"></i>
+                Digital Sign Quote Calculator
+            </h1>
+            <div class="hubspot-badge">
+                <i class="fas fa-sync-alt"></i> Live Pricing
+            </div>
+        </div>
+        
+        <div class="hubspot-iframe-container">
+            <iframe 
+                id="quoteCalculator"
+                src="https://[YOUR_USERNAME].github.io/sign-quote-calculator"
+                title="Quote Calculator"
+            ></iframe>
+            
+            <div class="hubspot-actions">
+                <button class="hubspot-btn hubspot-btn-secondary" onclick="refreshCalculator()">
+                    <i class="fas fa-redo"></i> Refresh
+                </button>
+                <button class="hubspot-btn hubspot-btn-primary" onclick="saveQuoteToDeal()">
+                    <i class="fas fa-save"></i> Save to Current Deal
+                </button>
+            </div>
+        </div>
+        
+        <div class="hubspot-info">
+            <h3><i class="fas fa-info-circle"></i> How to Use</h3>
+            <ol>
+                <li>Enter the sign dimensions (height × width) in feet</li>
+                <li>Select the pixel resolution (P6, P8, P10, or P16)</li>
+                <li>Choose whether the sign is single or double-sided</li>
+                <li>Select the customer type for proper pricing markup</li>
+                <li>Click "Calculate Quote" for instant pricing</li>
+                <li>Review the optimized panel configuration</li>
+                <li>Click "Save to Current Deal" to update the deal record</li>
+            </ol>
+            <p><strong>Note:</strong> Quotes are calculated in real-time and include all applicable taxes and markups.</p>
+        </div>
+    </div>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <script>
+        // Get HubSpot context from URL or parent window
+        const urlParams = new URLSearchParams(window.location.search);
+        const dealId = urlParams.get('dealId') || '{{objectId}}';
+        const dealName = urlParams.get('dealName') || '{{dealname}}';
+        const contactId = urlParams.get('contactId') || '{{contact.id}}';
+        
+        // When iframe loads, send HubSpot context
+        document.getElementById('quoteCalculator').onload = function() {
+            const iframe = this;
+            
+            // Send context to calculator
+            iframe.contentWindow.postMessage({
+                type: 'HUBSPOT_CONTEXT',
+                dealId: dealId,
+                contactId: contactId,
+                dealName: dealName,
+                timestamp: new Date().toISOString()
+            }, 'https://[YOUR_USERNAME].github.io');
+            
+            console.log('HubSpot context sent:', { dealId, contactId, dealName });
+        };
+        
+        // Listen for messages from calculator
+        window.addEventListener('message', function(event) {
+            // Security: Verify origin
+            // if (event.origin !== 'https://[YOUR_USERNAME].github.io') return;
+            
+            console.log('Message from calculator:', event.data);
+            
+            if (event.data.type === 'HUBSPOT_SAVE_QUOTE') {
+                // Handle quote save request
+                handleQuoteSave(event.data.data);
+            }
+        });
+        
+        function refreshCalculator() {
+            const iframe = document.getElementById('quoteCalculator');
+            iframe.src = iframe.src; // Reload iframe
+            
+            // Show notification
+            showNotification('Calculator refreshed', 'success');
+        }
+        
+        function saveQuoteToDeal() {
+            // Request calculator to send quote data
+            const iframe = document.getElementById('quoteCalculator');
+            iframe.contentWindow.postMessage({
+                type: 'REQUEST_QUOTE_SAVE'
+            }, 'https://[YOUR_USERNAME].github.io');
+        }
+        
+        function handleQuoteSave(quoteData) {
+            console.log('Saving quote to HubSpot:', quoteData);
+            
+            // Here you would integrate with HubSpot's API
+            // This is a simplified example
+            
+            if (window.hs) {
+                // Use HubSpot JS SDK if available
+                try {
+                    // Update deal properties
+                    window.hs.updateProperty('deal', dealId, {
+                        'amount': quoteData.quote.finalPrice,
+                        'dealname': `${dealName} - $${quoteData.quote.finalPrice} Quote`,
+                        'quote_generated_date': new Date().toISOString(),
+                        'quote_panel_count': quoteData.quote.totalPanels,
+                        'quote_resolution': quoteData.quote.resolution
+                    });
+                    
+                    // Create an engagement note
+                    const noteContent = `
+                        Quote Generated for ${dealName}
+                        ===============================
+                        Dimensions: ${quoteData.quote.height}' × ${quoteData.quote.width}'
+                        Resolution: ${quoteData.quote.resolution}
+                        Final Price: $${quoteData.quote.finalPrice}
+                        Total Panels: ${quoteData.quote.totalPanels}
+                        Panel Configuration: ${quoteData.quote.panelDetails}
+                        
+                        Generated: ${new Date().toLocaleString()}
+                    `;
+                    
+                    window.hs.createEngagement('note', {
+                        engagement: {
+                            type: 'NOTE',
+                            timestamp: Date.now()
+                        },
+                        metadata: {
+                            body: noteContent
+                        },
+                        associations: {
+                            dealIds: [dealId]
+                        }
+                    });
+                    
+                    showNotification('Quote saved to deal successfully!', 'success');
+                    
+                } catch (error) {
+                    console.error('HubSpot save error:', error);
+                    showNotification('Error saving to HubSpot: ' + error.message, 'error');
+                }
+            } else {
+                // Fallback: Show instructions
+                showNotification(
+                    'Copy this data to save manually:\n' + 
+                    JSON.stringify(quoteData, null, 2),
+                    'info'
+                );
+            }
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                background: ${type === 'success' ? '#2ecc71' : type === 'error' ? '#e74c3c' : '#3498db'};
+                color: white;
+                border-radius: 5px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                max-width: 400px;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            notification.innerHTML = `
+                <strong>${type.toUpperCase()}:</strong> ${message}
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Remove after 5 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+            
+            // Add animations
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideIn {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                @keyframes slideOut {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(100%); opacity: 0; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('HubSpot embed initialized for deal:', dealId);
+            
+            // Show initial notification
+            setTimeout(() => {
+                showNotification(`Connected to deal: ${dealName || dealId}`, 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
