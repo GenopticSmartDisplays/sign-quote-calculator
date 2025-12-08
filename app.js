@@ -158,12 +158,7 @@ function checkApiHealth() {
     updateApiStatus('checking');
     
     // Simple GET request to check API
-    fetch(`${CONFIG.GOOGLE_SCRIPT_URL}?test=true`, {
-        method: 'GET',
-        headers: {
-            'X-API-Key': CONFIG.API_KEY
-        }
-    })
+    fetch(`${CONFIG.GOOGLE_SCRIPT_URL}?test=true`)
     .then(response => {
         if (response.ok) {
             updateApiStatus('online');
@@ -197,7 +192,7 @@ function getCacheKey(height, width, resolution, sides, customerType) {
     return `${height}-${width}-${resolution}-${sides}-${customerType}`;
 }
 
-// ==================== API FUNCTIONS ====================
+// ==================== API FUNCTIONS (FIXED) ====================
 async function callQuoteApi(requestData) {
     // Check rate limiting
     const now = Date.now();
@@ -238,17 +233,18 @@ async function callQuoteApi(requestData) {
         timestamp: new Date().toISOString()
     };
     
-    // Make API call with timeout
+    // Make API call with timeout - NO 'no-cors' mode!
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
     try {
+        console.log('Sending API request for:', apiRequest.height, 'x', apiRequest.width);
+        
         const response = await fetch(CONFIG.GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors', // Important for Google Script
+            // NO 'mode: no-cors' - let it use default CORS mode
             headers: {
-                'Content-Type': 'application/json',
-                'X-API-Key': CONFIG.API_KEY
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(apiRequest),
             signal: controller.signal
@@ -256,29 +252,29 @@ async function callQuoteApi(requestData) {
         
         clearTimeout(timeoutId);
         
-        // Parse response
-        const text = await response.text();
-        let data;
+        console.log('Response status:', response.status, response.statusText);
         
-        try {
-            data = JSON.parse(text);
-        } catch (e) {
-            // Try alternative parsing for Google Script responses
-            const match = text.match(/JSON\.parse\('(.+)'\)/);
-            if (match) {
-                data = JSON.parse(match[1].replace(/\\'/g, "'"));
-            } else {
-                throw new Error('Invalid response format from API');
-            }
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`);
         }
+        
+        // Parse the JSON response
+        const data = await response.json();
+        console.log('API response received:', data);
         
         // Check for API errors
         if (data.error) {
-            throw new Error(data.error);
+            throw new Error(data.error.message || data.error);
         }
         
         if (!data.success) {
             throw new Error(data.message || 'Calculation failed');
+        }
+        
+        // Debug panel counts
+        if (data.totalPanels) {
+            console.log(`API returned ${data.totalPanels} panels for ${requestData.height}x${requestData.width}`);
+            console.log('Calculation method:', data.calculationMethod);
         }
         
         // Cache the result
@@ -305,8 +301,48 @@ async function callQuoteApi(requestData) {
             throw new Error('Request timeout. Please try again.');
         }
         
+        console.error('API call failed:', error);
         throw error;
     }
+}
+
+// ==================== TEST FUNCTION ====================
+function testApiDirectly() {
+    const testData = {
+        height: 22,
+        width: 33,
+        resolution: 'P6',
+        sides: 'Single',
+        customerType: 'Dealer',
+        apiKey: CONFIG.API_KEY
+    };
+    
+    console.log('Testing API with 22x33...');
+    
+    fetch(CONFIG.GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(testData)
+    })
+    .then(response => {
+        console.log('Response status:', response.status, response.statusText);
+        return response.text();
+    })
+    .then(text => {
+        console.log('Raw response:', text);
+        try {
+            const data = JSON.parse(text);
+            console.log('Parsed response:', data);
+            console.log(`Total panels: ${data.totalPanels}`);
+            console.log(`Success: ${data.success}`);
+            if (data.error) console.log('Error:', data.error);
+        } catch (e) {
+            console.error('Failed to parse JSON:', e);
+        }
+    })
+    .catch(error => console.error('Fetch error:', error));
 }
 
 // ==================== MAIN CALCULATION FUNCTION ====================
@@ -339,12 +375,14 @@ async function calculateQuote() {
             resolution: elements.resolution.value,
             sides: elements.sides.value,
             customerType: elements.customerType.value,
-            contactEmail: 'user@example.com', // Will be replaced by HubSpot context
+            contactEmail: 'user@example.com',
             projectName: elements.projectName.value || `Sign ${height}x${width}`,
             hubspotDealId: elements.hubspotDealId.value || null,
             hubspotContactId: elements.hubspotContactId.value || null,
             requestId: 'calc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
         };
+        
+        console.log('Calculating quote for:', height, 'x', width);
         
         // Call API
         const result = await callQuoteApi(requestData);
@@ -390,6 +428,8 @@ async function calculateQuote() {
             errorMessage = 'Calculation timed out. The server may be busy. Please try again.';
         } else if (errorMessage.includes('Rate limit')) {
             errorMessage = 'Too many requests. Please wait a moment before trying again.';
+        } else if (errorMessage.includes('CORS') || errorMessage.includes('Network')) {
+            errorMessage = 'Network error. Check API URL and CORS settings.';
         }
         
         showToast('Calculation Failed', errorMessage, 'error');
