@@ -124,16 +124,6 @@
             transform: scale(1.05);
         }
         
-        .cost-item {
-            border-left: 4px solid var(--primary-color);
-            padding-left: 15px;
-            margin-bottom: 15px;
-            background: white;
-            padding: 12px;
-            border-radius: 5px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        
         .final-price {
             font-size: 2.8rem;
             font-weight: 800;
@@ -241,6 +231,23 @@
             color: var(--secondary-color);
         }
         
+        .spec-badge {
+            background: #f0f8ff;
+            border: 1px solid #d1e7ff;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 5px;
+            text-align: center;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+        
+        .spec-value {
+            font-weight: 700;
+            color: #3498db;
+            font-size: 1.1rem;
+        }
+        
         @media (max-width: 768px) {
             .calculator-card {
                 border-radius: 15px;
@@ -310,10 +317,10 @@
                         <i class="fas fa-expand-alt tooltip-icon" title="Pixel pitch - smaller number = higher resolution"></i>
                     </label>
                     <select id="resolution" class="form-select">
-                        <option value="P6">P6 - Standard Outdoor</option>
-                        <option value="P8">P8 - Large Format</option>
-                        <option value="P10">P10 - Billboard</option>
-                        <option value="P16">P16 - Super Size</option>
+                        <option value="P6">P6</option>
+                        <option value="P8">P8</option>
+                        <option value="P10">P10</option>
+                        <option value="P16">P16</option>
                     </select>
                 </div>
                 
@@ -333,12 +340,10 @@
                 <div class="col-md-4">
                     <label class="form-label">
                         Customer Type
-                        <i class="fas fa-users tooltip-icon" 
-                           title="Retail: 2.1x markup | Dealer: 1.65x markup"></i>
                     </label>
                     <select id="customerType" class="form-select">
-                        <option value="Retail">Retail (2.1x)</option>
-                        <option value="Dealer">Dealer (1.65x)</option>
+                        <option value="Retail">Retail</option>
+                        <option value="Dealer">Dealer</option>
                     </select>
                 </div>
                 
@@ -386,35 +391,37 @@
                         <h5><i class="fas fa-th-large"></i> Panel Configuration:</h5>
                         <div id="panelDetails" class="mt-2"></div>
                         <small class="text-muted mt-2 d-block">
-                            <i class="fas fa-info-circle"></i> Optimized for fewest panels with maximum uniformity
+                            <i class="fas fa-info-circle"></i> Optimized for exact coverage with no waste
                         </small>
                     </div>
                     
-                    <h5><i class="fas fa-receipt"></i> Cost Breakdown:</h5>
-                    <div class="cost-item">
-                        <strong>Panel Cost (with 20% import tax):</strong> 
-                        $<span id="panelCost" class="float-end">0.00</span>
-                    </div>
-                    <div class="cost-item">
-                        <strong>Resolution Cost (with 20% import tax):</strong> 
-                        $<span id="resolutionCost" class="float-end">0.00</span>
-                    </div>
-                    <div class="cost-item">
-                        <strong>Sensor/Sender/Receiver (with 20% import tax):</strong> 
-                        $<span id="sensorCost" class="float-end">0.00</span>
-                    </div>
-                    <div class="cost-item">
-                        <strong>Computer Cost (no import tax):</strong> 
-                        $<span id="computerCost" class="float-end">0.00</span>
+                    <!-- Specifications -->
+                    <h5><i class="fas fa-cogs"></i> Specifications:</h5>
+                    <div class="row mt-3">
+                        <div class="col-md-4">
+                            <div class="spec-badge">
+                                <div>Total Resolution</div>
+                                <div class="spec-value" id="totalResolution">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="spec-badge">
+                                <div>Pixel Density</div>
+                                <div class="spec-value" id="pixelDensity">-</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="spec-badge">
+                                <div>Viewing Distance</div>
+                                <div class="spec-value" id="viewingDistance">-</div>
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="cost-item mt-4" style="border-left-color: var(--success-color);">
-                        <strong>Total Before Markup:</strong> 
-                        $<span id="totalBeforeMarkup" class="float-end">0.00</span>
-                    </div>
-                    <div class="cost-item" style="border-left-color: var(--warning-color);">
-                        <strong>Markup Applied (<span id="markupPercent">0%</span>):</strong> 
-                        <span id="markupMultiplier" class="float-end">0.00x</span>
+                    <!-- Note -->
+                    <div class="alert alert-info mt-4">
+                        <i class="fas fa-info-circle"></i> 
+                        <strong>Note:</strong> This quote is valid for 30 days. As a manufacturer of high-quality Outdoor LED Displays, we only manufacture and assemble the digital components. Quotes do not include shipping, installation, or frame or mounting bracket fabrication.
                     </div>
                 </div>
                 
@@ -448,14 +455,6 @@
                     </div>
                 </div>
             </div>
-            
-            <div class="mt-4">
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> 
-                    <strong>Note:</strong> Prices include 20% import tax where applicable. 
-                    Computer cost is not taxed. This quote is valid for 30 days.
-                </div>
-            </div>
         </div>
     </div>
 
@@ -481,9 +480,6 @@
     <script>
         // Listen for HubSpot context messages
         window.addEventListener('message', function(event) {
-            // Security: Verify origin if needed
-            // if (event.origin !== 'https://app.hubspot.com') return;
-            
             if (event.data.type === 'HUBSPOT_CONTEXT') {
                 console.log('HubSpot context received:', event.data);
                 
