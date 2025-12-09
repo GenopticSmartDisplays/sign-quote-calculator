@@ -1,7 +1,7 @@
 // ==================== CONFIGURATION ====================
 const CONFIG = {
     // API Configuration
-    GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbxYtsPyh7Ym3Nc6KIocvEgln70SdveHpMdek2Zzux4ewzfXxPKRtdafODf7qNsyiH7aTQ/exec',
+    GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzM80Bmd-BbKFgu9k-u8_SPD4MukDfqehPCKcdudU0bS1rZs57thFcaz7qQK0DXO0bMVw/exec',
     
     // API Security (Update these with your actual keys)
     API_KEY: 'HS_QUOTE_CALC_2024_SECURE_KEY_XYZ123',
