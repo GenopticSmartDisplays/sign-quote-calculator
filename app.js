@@ -1,18 +1,17 @@
 // ==================== CONFIGURATION ====================
 const CONFIG = {
     // API Configuration
-    GOOGLE_SCRIPT_URL: 'https://sign-calculator-proxy.genoptic2025.workers.dev',
+    GOOGLE_SCRIPT_URL: 'https://sign-calculator-proxy.genoptic2025.workers.dev', // Your Cloudflare Worker URL
     
-    // API Security (Update these with your actual keys)
+    // API Security
     API_KEY: 'HS_QUOTE_CALC_2024_SECURE_KEY_XYZ123',
     
     // HubSpot Integration
-    HUBSPOT_MODE: true, // Set to false for standalone mode
+    HUBSPOT_MODE: true,
     
     // Feature Flags
     ENABLE_LOGGING: true,
     ENABLE_CACHING: true,
-    ENABLE_ANALYTICS: true,
     
     // Rate Limiting
     MAX_REQUESTS_PER_MINUTE: 30,
@@ -23,7 +22,7 @@ const CONFIG = {
     DEFAULT_CUSTOMER_TYPE: 'Retail',
     
     // Cache Settings
-    CACHE_DURATION: 5 * 60 * 1000, // 5 minutes in milliseconds
+    CACHE_DURATION: 5 * 60 * 1000,
 };
 
 // ==================== GLOBAL STATE ====================
@@ -37,11 +36,6 @@ let state = {
         dealId: null,
         contactId: null,
         dealName: null
-    },
-    userPreferences: {
-        autoCalculate: true,
-        showDetails: true,
-        theme: 'light'
     }
 };
 
@@ -65,17 +59,15 @@ const elements = {
     loading: document.getElementById('loading'),
     panelDetails: document.getElementById('panelDetails'),
     finalPrice: document.getElementById('finalPrice'),
-    panelCost: document.getElementById('panelCost'),
-    resolutionCost: document.getElementById('resolutionCost'),
-    sensorCost: document.getElementById('sensorCost'),
-    computerCost: document.getElementById('computerCost'),
     totalPanels: document.getElementById('totalPanels'),
     totalArea: document.getElementById('totalArea'),
-    totalBeforeMarkup: document.getElementById('totalBeforeMarkup'),
-    markupPercent: document.getElementById('markupPercent'),
-    markupMultiplier: document.getElementById('markupMultiplier'),
     panelsPerSide: document.getElementById('panelsPerSide'),
     quoteId: document.getElementById('quoteId'),
+    
+    // Specifications
+    totalResolution: document.getElementById('totalResolution'),
+    pixelDensity: document.getElementById('pixelDensity'),
+    viewingDistance: document.getElementById('viewingDistance'),
     
     // Preview
     dimensionPreview: document.getElementById('dimensionPreview'),
@@ -97,7 +89,6 @@ function showToast(title, message, type = 'info') {
     const toastTitle = document.getElementById('toastTitle');
     const toastMessage = document.getElementById('toastMessage');
     
-    // Set icon based on type
     const icons = {
         success: 'fas fa-check-circle',
         error: 'fas fa-exclamation-circle',
@@ -107,15 +98,11 @@ function showToast(title, message, type = 'info') {
     
     toastTitle.innerHTML = `<i class="${icons[type] || icons.info}"></i> ${title}`;
     toastMessage.textContent = message;
-    
-    // Set color
     toastEl.className = `toast ${type}`;
     
-    // Show toast
     const toast = new bootstrap.Toast(toastEl);
     toast.show();
     
-    // Log to console
     if (CONFIG.ENABLE_LOGGING) {
         console.log(`[${type.toUpperCase()}] ${title}: ${message}`);
     }
@@ -148,43 +135,29 @@ function updateApiStatus(status) {
     };
     
     const config = statusConfig[status] || statusConfig.unknown;
-    
     elements.statusDot.className = `status-indicator ${config.class}`;
     elements.statusText.textContent = config.text;
     elements.apiStatus.style.display = config.show ? 'block' : 'none';
 }
 
-// ==================== FIXED API HEALTH CHECK ====================
 function checkApiHealth() {
     updateApiStatus('checking');
     
-    // Use the test=true parameter for GET request
     fetch(`${CONFIG.GOOGLE_SCRIPT_URL}?test=true`)
     .then(response => {
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json();
     })
     .then(data => {
-        // Check if the API returns online status
         if (data && data.status === 'online') {
             updateApiStatus('online');
-            if (state.apiStatus !== 'online') {
-                showToast('API Connected', 'Calculator API is online and ready', 'success');
-            }
         } else {
             updateApiStatus('offline');
-            showToast('API Warning', 'Calculator service returned unexpected response', 'warning');
         }
     })
     .catch(error => {
         updateApiStatus('offline');
         console.warn('API health check failed:', error);
-        // Don't show toast on every check, only if status changed
-        if (state.apiStatus !== 'offline') {
-            showToast('API Offline', 'Unable to connect to calculator service', 'error');
-        }
     });
 }
 
@@ -208,7 +181,6 @@ function getCacheKey(height, width, resolution, sides, customerType) {
 
 // ==================== API FUNCTIONS ====================
 async function callQuoteApi(requestData) {
-    // Check rate limiting
     const now = Date.now();
     const oneMinuteAgo = now - 60000;
     
@@ -217,11 +189,9 @@ async function callQuoteApi(requestData) {
         throw new Error('Rate limit exceeded. Please wait a moment.');
     }
     
-    // Update request tracking
     state.lastRequestTime = now;
     state.requestCount++;
     
-    // Check cache first
     const cacheKey = getCacheKey(
         requestData.height,
         requestData.width,
@@ -233,49 +203,36 @@ async function callQuoteApi(requestData) {
     if (CONFIG.ENABLE_CACHING && state.cache.has(cacheKey)) {
         const cached = state.cache.get(cacheKey);
         if (Date.now() - cached.timestamp < CONFIG.CACHE_DURATION) {
-            console.log('Using cached result for:', cacheKey);
             return cached.data;
         }
     }
     
-    // Prepare request with authentication
     const apiRequest = {
         ...requestData,
         apiKey: CONFIG.API_KEY,
         source: 'hubspot_calculator',
-        version: '1.0',
-        timestamp: new Date().toISOString()
+        version: '1.0'
     };
     
-    // Make API call with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
     
     try {
-        console.log('Sending API request for:', apiRequest.height, 'x', apiRequest.width);
-        
         const response = await fetch(CONFIG.GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(apiRequest),
             signal: controller.signal
         });
         
         clearTimeout(timeoutId);
         
-        console.log('Response status:', response.status, response.statusText);
-        
         if (!response.ok) {
             throw new Error(`API error: ${response.status} ${response.statusText}`);
         }
         
-        // Parse the JSON response
         const data = await response.json();
-        console.log('API response received:', data);
         
-        // Check for API errors
         if (data.error) {
             throw new Error(data.error.message || data.error);
         }
@@ -284,22 +241,13 @@ async function callQuoteApi(requestData) {
             throw new Error(data.message || 'Calculation failed');
         }
         
-        // Debug panel counts
-        if (data.totalPanels) {
-            console.log(`API returned ${data.totalPanels} panels for ${requestData.height}x${requestData.width}`);
-            console.log('Calculation method:', data.calculationMethod);
-        }
-        
-        // Cache the result
         if (CONFIG.ENABLE_CACHING) {
             state.cache.set(cacheKey, {
                 data: data,
                 timestamp: Date.now()
             });
             
-            // Clean old cache entries
-            const maxCacheSize = 100;
-            if (state.cache.size > maxCacheSize) {
+            if (state.cache.size > 100) {
                 const oldestKey = state.cache.keys().next().value;
                 state.cache.delete(oldestKey);
             }
@@ -319,9 +267,8 @@ async function callQuoteApi(requestData) {
     }
 }
 
-// ==================== MAIN CALCULATION FUNCTION ====================
+// ==================== MAIN CALCULATION ====================
 async function calculateQuote() {
-    // Validate inputs
     if (!elements.height.value || !elements.width.value) {
         showToast('Validation Error', 'Please enter both height and width', 'error');
         elements.height.focus();
@@ -336,87 +283,63 @@ async function calculateQuote() {
         return;
     }
     
-    // Show loading, hide results
     elements.loading.style.display = 'block';
     elements.results.style.display = 'none';
     elements.calculateBtn.disabled = true;
     
     try {
-        // Prepare request data
         const requestData = {
             height: height,
             width: width,
             resolution: elements.resolution.value,
             sides: elements.sides.value,
             customerType: elements.customerType.value,
-            contactEmail: 'user@example.com',
             projectName: elements.projectName.value || `Sign ${height}x${width}`,
             hubspotDealId: elements.hubspotDealId.value || null,
             hubspotContactId: elements.hubspotContactId.value || null,
             requestId: 'calc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
         };
         
-        console.log('Calculating quote for:', height, 'x', width);
-        
-        // Call API
         const result = await callQuoteApi(requestData);
-        
-        // Store current quote
         state.currentQuote = {
             ...result,
             input: requestData,
             calculatedAt: new Date().toISOString()
         };
         
-        // Display results
         displayResults(result);
         
-        // Hide loading, show results
         elements.loading.style.display = 'none';
         elements.results.style.display = 'block';
         elements.calculateBtn.disabled = false;
         
-        // Show success message
         showToast('Quote Calculated', 
                  `${result.totalPanels} panels optimized for ${height}'×${width}' sign`, 
                  'success');
         
-        // Analytics
-        if (CONFIG.ENABLE_ANALYTICS) {
-            logCalculationAnalytics(requestData, result);
-        }
-        
     } catch (error) {
-        // Handle errors
         elements.loading.style.display = 'none';
         elements.calculateBtn.disabled = false;
         
         console.error('Calculation error:', error);
-        
-        // Show error to user
         let errorMessage = error.message;
         
         if (errorMessage.includes('Cannot build')) {
             errorMessage = `Cannot build ${height}'×${width}' sign with exact coverage. Try different dimensions.`;
         } else if (errorMessage.includes('timeout')) {
-            errorMessage = 'Calculation timed out. The server may be busy. Please try again.';
+            errorMessage = 'Calculation timed out. Please try again.';
         } else if (errorMessage.includes('Rate limit')) {
-            errorMessage = 'Too many requests. Please wait a moment before trying again.';
+            errorMessage = 'Too many requests. Please wait a moment.';
         } else if (errorMessage.includes('CORS') || errorMessage.includes('Network')) {
-            errorMessage = 'Network error. Check API URL and CORS settings.';
-        } else if (errorMessage.includes('Invalid API key')) {
-            errorMessage = 'API authentication failed. Please contact support.';
+            errorMessage = 'Network error. Please check connection.';
         }
         
         showToast('Calculation Failed', errorMessage, 'error');
-        
-        // Fallback: Show estimated calculation
-        showEstimatedCalculation(height, width);
     }
 }
 
 function displayResults(data) {
-    // Format panel details with badges
+    // Panel Configuration
     if (data.panelDetails && data.panelDetails.trim()) {
         const panels = data.panelDetails.split(', ');
         elements.panelDetails.innerHTML = panels.map(panel => 
@@ -427,12 +350,11 @@ function displayResults(data) {
             '<span class="text-muted"><i>Panel details not available</i></span>';
     }
     
-    // Update all display values
+    // Specifications
+    calculateSpecifications();
+    
+    // Basic Information
     elements.finalPrice.textContent = formatCurrency(data.finalPrice || 0);
-    elements.panelCost.textContent = (data.panelCost || 0).toFixed(2);
-    elements.resolutionCost.textContent = (data.resolutionCost || 0).toFixed(2);
-    elements.sensorCost.textContent = (data.sensorCost || 0).toFixed(2);
-    elements.computerCost.textContent = (data.computerCost || 0).toFixed(2);
     elements.totalPanels.textContent = formatNumber(data.totalPanels || 0);
     elements.totalArea.textContent = formatNumber(data.totalArea || 0);
     elements.panelsPerSide.textContent = formatNumber(
@@ -440,66 +362,110 @@ function displayResults(data) {
     );
     elements.quoteId.textContent = data.quoteId || 'N/A';
     
-    // Calculate and display markup info
-    const beforeMarkup = (data.panelCost || 0) + (data.resolutionCost || 0) + 
-                        (data.sensorCost || 0) + (data.computerCost || 0);
-    elements.totalBeforeMarkup.textContent = formatNumber(beforeMarkup);
-    
-    if (data.markupApplied) {
-        const markupPercent = ((data.markupApplied - 1) * 100).toFixed(0);
-        elements.markupPercent.textContent = markupPercent + '%';
-        elements.markupMultiplier.textContent = data.markupApplied.toFixed(2) + 'x';
-    }
-    
-    // Update window title with quote info
+    // Update window title
     const height = elements.height.value;
     const width = elements.width.value;
     document.title = `$${data.finalPrice?.toFixed(0) || '0'} - ${height}'×${width}' Quote`;
 }
 
-function showEstimatedCalculation(height, width) {
-    // Fallback estimation when API fails
-    const area = height * width;
-    const sides = elements.sides.value;
-    const customerType = elements.customerType.value;
+function calculateSpecifications() {
+    const height = parseFloat(elements.height.value) || 0;
+    const width = parseFloat(elements.width.value) || 0;
+    const resolution = elements.resolution.value;
     
-    const panelMultiplier = sides.includes('Double') ? 2 : 1;
-    const markup = customerType === 'Dealer' ? 1.65 : 2.1;
+    // Calculate specifications based on resolution
+    const pixelPitch = parseInt(resolution.replace('P', ''));
+    const pixelsPerFoot = 12 / pixelPitch; // 12 inches per foot
     
-    // Simple estimation (based on 4x4 panels)
-    const panelSize = 16; // 4x4 panel in square feet
-    const estimatedPanels = Math.ceil((area * panelMultiplier) / panelSize);
-    const panelCost = estimatedPanels * 100 * panelMultiplier;
-    const resolutionCost = area * 10 * panelMultiplier;
-    const sensorCost = (sides === "Double (M/M)") ? 20 : (panelMultiplier === 2 ? 20 : 10);
-    const computerCost = (sides === "Double (M/M)") ? 20 : 10;
+    // Total pixels
+    const totalPixelsH = Math.round(height * pixelsPerFoot);
+    const totalPixelsW = Math.round(width * pixelsPerFoot);
     
-    const finalPrice = Math.round((panelCost + resolutionCost + sensorCost + computerCost) * markup * 100) / 100;
+    // Pixel density
+    const pixelDensity = Math.round(pixelsPerFoot * pixelsPerFoot);
     
-    const estimatedData = {
-        success: true,
-        finalPrice: finalPrice,
-        panelDetails: `Approximately ${estimatedPanels} panels (estimate)`,
-        panelCost: Math.round(panelCost * 100) / 100,
-        resolutionCost: Math.round(resolutionCost * 100) / 100,
-        sensorCost: Math.round(sensorCost * 100) / 100,
-        computerCost: computerCost,
-        totalPanels: estimatedPanels,
-        totalArea: area * panelMultiplier,
-        panelMultiplier: panelMultiplier,
-        markupApplied: markup,
-        importTaxRate: 0.20,
-        calculationMethod: 'fallback',
-        dimensions: `${height}x${width}`,
-        isEstimate: true
-    };
+    // Viewing distance (in feet) - based on pixel pitch
+    const viewingDistanceFt = pixelPitch * 10; // Rough estimate: 10x pixel pitch in feet
     
-    displayResults(estimatedData);
-    elements.results.style.display = 'block';
+    // Update display
+    elements.totalResolution.textContent = `${totalPixelsW} × ${totalPixelsH}`;
+    elements.pixelDensity.textContent = `${pixelDensity.toLocaleString()} pixels/sq ft`;
+    elements.viewingDistance.textContent = `${viewingDistanceFt} ft (${Math.round(viewingDistanceFt * 0.3048)} m)`;
+}
+
+// ==================== PRESET BUTTONS ====================
+function addPresetButtons() {
+    if (document.querySelector('.preset-buttons')) return;
     
-    showToast('Estimated Calculation', 
-             'Using estimated values. API may be unavailable.', 
-             'warning');
+    const presets = [
+        { label: '3×6', height: 3, width: 6 },
+        { label: '3×8', height: 3, width: 8 },
+        { label: '4×8', height: 4, width: 8 },
+        { label: '5×10', height: 5, width: 10 },
+        { label: '6×12', height: 6, width: 12 },
+        { label: '8×12', height: 8, width: 12 },
+        { label: '10×20', height: 10, width: 20 },
+        { label: '12×24', height: 12, width: 24 },
+        { label: '14×48', height: 14, width: 48 }
+    ];
+    
+    const presetContainer = document.createElement('div');
+    presetContainer.className = 'preset-buttons mt-3 text-center';
+    presetContainer.innerHTML = '<small class="text-muted">Common sizes: </small>';
+    
+    // Group presets into rows for better display
+    const rows = [];
+    for (let i = 0; i < presets.length; i += 3) {
+        rows.push(presets.slice(i, i + 3));
+    }
+    
+    rows.forEach(row => {
+        const rowDiv = document.createElement('div');
+        rowDiv.className = 'row mt-1';
+        
+        row.forEach(preset => {
+            const colDiv = document.createElement('div');
+            colDiv.className = 'col-md-4 col-4';
+            
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-primary w-100';
+            btn.textContent = preset.label;
+            btn.onclick = () => {
+                elements.height.value = preset.height;
+                elements.width.value = preset.width;
+                updateDimensionPreview();
+                calculateQuote();
+            };
+            
+            colDiv.appendChild(btn);
+            rowDiv.appendChild(colDiv);
+        });
+        
+        presetContainer.appendChild(rowDiv);
+    });
+    
+    // Insert after the calculate button
+    const calculateDiv = elements.calculateBtn.parentElement;
+    calculateDiv.parentNode.insertBefore(presetContainer, calculateDiv.nextSibling);
+}
+
+// ==================== FORM MANAGEMENT ====================
+function resetForm() {
+    elements.height.value = '';
+    elements.width.value = '';
+    elements.resolution.value = CONFIG.DEFAULT_RESOLUTION;
+    elements.sides.value = CONFIG.DEFAULT_SIDES;
+    elements.customerType.value = CONFIG.DEFAULT_CUSTOMER_TYPE;
+    elements.projectName.value = '';
+    
+    elements.results.style.display = 'none';
+    elements.dimensionPreview.style.display = 'none';
+    
+    state.currentQuote = null;
+    elements.height.focus();
+    
+    showToast('Form Reset', 'Ready for new quote', 'info');
 }
 
 // ==================== HUBSPOT INTEGRATION ====================
@@ -513,11 +479,9 @@ async function saveToHubSpot() {
     const originalText = saveBtn.innerHTML;
     
     try {
-        // Update button state
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
         
-        // Prepare HubSpot data
         const quoteData = {
             quote: state.currentQuote,
             context: {
@@ -528,26 +492,21 @@ async function saveToHubSpot() {
             }
         };
         
-        // Check if we're in HubSpot context
         if (elements.hubspotDealId.value) {
-            // We're in HubSpot - send message to parent
             if (window.parent !== window) {
                 window.parent.postMessage({
                     type: 'HUBSPOT_SAVE_QUOTE',
                     data: quoteData
                 }, '*');
-                
                 showToast('Success', 'Quote sent to HubSpot deal', 'success');
             } else {
-                // Standalone mode - save locally
                 saveQuoteLocally(quoteData);
             }
         } else {
-            // No HubSpot context - save locally
             saveQuoteLocally(quoteData);
         }
         
-        // Also send to API for logging
+        // Log to API
         await fetch(CONFIG.GOOGLE_SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -563,14 +522,12 @@ async function saveToHubSpot() {
         console.error('Save to HubSpot failed:', error);
         showToast('Save Failed', 'Could not save quote: ' + error.message, 'error');
     } finally {
-        // Restore button
         saveBtn.disabled = false;
         saveBtn.innerHTML = originalText;
     }
 }
 
 function saveQuoteLocally(quoteData) {
-    // Save to localStorage for demo/standalone mode
     const savedQuotes = JSON.parse(localStorage.getItem('savedQuotes') || '[]');
     savedQuotes.push({
         ...quoteData,
@@ -579,10 +536,7 @@ function saveQuoteLocally(quoteData) {
     });
     
     localStorage.setItem('savedQuotes', JSON.stringify(savedQuotes));
-    
-    showToast('Saved Locally', 
-             'Quote saved to browser storage. Enable HubSpot for CRM integration.', 
-             'info');
+    showToast('Saved Locally', 'Quote saved to browser storage', 'info');
 }
 
 function exportQuote() {
@@ -591,9 +545,8 @@ function exportQuote() {
         return;
     }
     
-    // Create PDF content
     const quoteContent = `
-        QUOTE SUMMARY
+        DIGITAL SIGN QUOTE
         ===============================
         Project: ${elements.projectName.value || 'Unnamed Project'}
         Dimensions: ${elements.height.value}' × ${elements.width.value}'
@@ -609,17 +562,21 @@ function exportQuote() {
         Total Panels: ${state.currentQuote.totalPanels}
         Total Area: ${state.currentQuote.totalArea} sq ft
         
-        Cost Breakdown:
-        - Panels: $${state.currentQuote.panelCost?.toFixed(2)}
-        - Resolution: $${state.currentQuote.resolutionCost?.toFixed(2)}
-        - Sensors: $${state.currentQuote.sensorCost?.toFixed(2)}
-        - Computer: $${state.currentQuote.computerCost?.toFixed(2)}
+        Specifications:
+        - Total Resolution: ${elements.totalResolution.textContent}
+        - Pixel Density: ${elements.pixelDensity.textContent}
+        - Optimal Viewing Distance: ${elements.viewingDistance.textContent}
+        
+        Quote Terms:
+        This quote is valid for 30 days. As a manufacturer of high-quality 
+        Outdoor LED Displays, we only manufacture and assemble the digital 
+        components. Quotes do not include shipping, installation, or frame 
+        or mounting bracket fabrication.
         
         Generated: ${new Date().toLocaleString()}
         Quote ID: ${state.currentQuote.quoteId || 'N/A'}
     `;
     
-    // Create and download file
     const blob = new Blob([quoteContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -640,76 +597,26 @@ function shareQuote() {
     }
     
     const quoteUrl = window.location.href.split('?')[0];
-    const shareText = `Check out this sign quote: ${elements.height.value}'×${elements.width.value}' for ${elements.finalPrice.textContent}`;
+    const shareText = `Digital Sign Quote: ${elements.height.value}'×${elements.width.value}' ${elements.resolution.value} - ${elements.finalPrice.textContent}`;
     
     if (navigator.share) {
         navigator.share({
-            title: 'Sign Quote',
+            title: 'Digital Sign Quote',
             text: shareText,
             url: quoteUrl
         });
     } else {
-        // Fallback: Copy to clipboard
         navigator.clipboard.writeText(shareText + '\n' + quoteUrl)
             .then(() => showToast('Copied', 'Quote link copied to clipboard', 'success'))
             .catch(() => showToast('Error', 'Could not share quote', 'error'));
     }
 }
 
-function logCalculationAnalytics(requestData, result) {
-    const analyticsData = {
-        event: 'quote_calculated',
-        timestamp: new Date().toISOString(),
-        dimensions: `${requestData.height}x${requestData.width}`,
-        resolution: requestData.resolution,
-        sides: requestData.sides,
-        customerType: requestData.customerType,
-        finalPrice: result.finalPrice,
-        totalPanels: result.totalPanels,
-        success: result.success,
-        isEstimate: result.isEstimate || false,
-        userAgent: navigator.userAgent,
-        screenResolution: `${screen.width}x${screen.height}`
-    };
-    
-    // Send to your analytics endpoint
-    console.log('Analytics:', analyticsData);
-}
-
-// ==================== FORM MANAGEMENT ====================
-function resetForm() {
-    // Clear inputs
-    elements.height.value = '';
-    elements.width.value = '';
-    elements.resolution.value = CONFIG.DEFAULT_RESOLUTION;
-    elements.sides.value = CONFIG.DEFAULT_SIDES;
-    elements.customerType.value = CONFIG.DEFAULT_CUSTOMER_TYPE;
-    elements.projectName.value = '';
-    
-    // Clear results
-    elements.results.style.display = 'none';
-    elements.dimensionPreview.style.display = 'none';
-    
-    // Reset state
-    state.currentQuote = null;
-    
-    // Focus on height
-    elements.height.focus();
-    
-    showToast('Form Reset', 'Ready for new quote', 'info');
-}
-
 // ==================== EVENT LISTENERS ====================
 function setupEventListeners() {
-    // Auto-update dimension preview
     elements.height.addEventListener('input', updateDimensionPreview);
     elements.width.addEventListener('input', updateDimensionPreview);
     
-    // Auto-calculate for small signs
-    elements.height.addEventListener('blur', autoCalculateIfReady);
-    elements.width.addEventListener('blur', autoCalculateIfReady);
-    
-    // Enter key support
     elements.height.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') elements.width.focus();
     });
@@ -720,80 +627,21 @@ function setupEventListeners() {
         }
     });
     
-    // Calculate button
-    if (elements.calculateBtn) {
-        elements.calculateBtn.addEventListener('click', calculateQuote);
-    }
-    
-    // Save button
-    if (elements.saveBtn) {
-        elements.saveBtn.addEventListener('click', saveToHubSpot);
-    }
+    elements.resolution.addEventListener('change', () => {
+        if (state.currentQuote) {
+            calculateSpecifications();
+        }
+    });
     
     // Add preset buttons
     addPresetButtons();
 }
 
-function autoCalculateIfReady() {
-    if (!state.userPreferences.autoCalculate) return;
-    
-    const height = parseFloat(elements.height.value) || 0;
-    const width = parseFloat(elements.width.value) || 0;
-    
-    if (height > 0 && width > 0 && height <= 50 && width <= 50) {
-        // Auto-calculate for small signs
-        setTimeout(() => {
-            if (document.activeElement !== elements.height && 
-                document.activeElement !== elements.width) {
-                calculateQuote();
-            }
-        }, 1000);
-    }
-}
-
-function addPresetButtons() {
-    // Check if preset container already exists
-    if (document.querySelector('.preset-buttons')) return;
-    
-    // Add common preset buttons
-    const presets = [
-        { label: '22×33', height: 22, width: 33 },
-        { label: '9×9', height: 9, width: 9 },
-        { label: '10×20', height: 10, width: 20 },
-        { label: '4×8', height: 4, width: 8 }
-    ];
-    
-    const presetContainer = document.createElement('div');
-    presetContainer.className = 'preset-buttons mt-3 text-center';
-    presetContainer.innerHTML = '<small class="text-muted">Quick presets: </small>';
-    
-    presets.forEach(preset => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn btn-sm btn-outline-primary ms-2';
-        btn.textContent = preset.label;
-        btn.onclick = () => {
-            elements.height.value = preset.height;
-            elements.width.value = preset.width;
-            updateDimensionPreview();
-            calculateQuote();
-        };
-        presetContainer.appendChild(btn);
-    });
-    
-    // Insert after the calculate button
-    const calculateDiv = elements.calculateBtn.parentElement;
-    calculateDiv.parentNode.insertBefore(presetContainer, calculateDiv.nextSibling);
-}
-
 // ==================== INITIALIZATION ====================
 function initializeApp() {
-    console.log('Initializing Sign Quote Calculator v1.0');
+    console.log('Initializing Sign Quote Calculator');
     
-    // Setup event listeners
     setupEventListeners();
-    
-    // Check API health
     checkApiHealth();
     
     // Check for URL parameters
@@ -808,34 +656,15 @@ function initializeApp() {
         }
     }
     
-    // Load saved preferences
-    const savedPrefs = localStorage.getItem('quoteCalculatorPrefs');
-    if (savedPrefs) {
-        try {
-            state.userPreferences = { ...state.userPreferences, ...JSON.parse(savedPrefs) };
-        } catch (e) {
-            console.warn('Could not load preferences:', e);
-        }
-    }
-    
-    // Periodic API health check (every 5 minutes)
+    // Periodic API health check
     setInterval(checkApiHealth, 5 * 60 * 1000);
     
-    // Show welcome message
-    setTimeout(() => {
-        if (!state.currentQuote && elements.height.value === '' && elements.width.value === '') {
-            showToast('Welcome', 'Enter dimensions to calculate your sign quote', 'info');
-        }
-    }, 1000);
-    
-    // Log initialization
     if (CONFIG.ENABLE_LOGGING) {
         console.log('App initialized successfully');
     }
 }
 
-// ==================== START APPLICATION ====================
-// Wait for DOM to be fully loaded
+// Start application
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeApp);
 } else {
