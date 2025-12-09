@@ -143,7 +143,7 @@ function updateApiStatus(status) {
     const statusConfig = {
         online: { class: 'status-online', text: 'API: Online', show: true },
         offline: { class: 'status-offline', text: 'API: Offline', show: true },
-        checking: { class: 'status-offline', text: 'API: Checking...', show: true },
+        checking: { class: 'status-checking', text: 'API: Checking...', show: true },
         unknown: { class: 'status-offline', text: 'API: Unknown', show: false }
     };
     
@@ -154,23 +154,37 @@ function updateApiStatus(status) {
     elements.apiStatus.style.display = config.show ? 'block' : 'none';
 }
 
+// ==================== FIXED API HEALTH CHECK ====================
 function checkApiHealth() {
     updateApiStatus('checking');
     
-    // Simple GET request to check API
+    // Use the test=true parameter for GET request
     fetch(`${CONFIG.GOOGLE_SCRIPT_URL}?test=true`)
     .then(response => {
-        if (response.ok) {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        // Check if the API returns online status
+        if (data && data.status === 'online') {
             updateApiStatus('online');
-            showToast('API Ready', 'Connected to quote calculator', 'success');
+            if (state.apiStatus !== 'online') {
+                showToast('API Connected', 'Calculator API is online and ready', 'success');
+            }
         } else {
             updateApiStatus('offline');
-            showToast('API Warning', 'Calculator service may be slow', 'warning');
+            showToast('API Warning', 'Calculator service returned unexpected response', 'warning');
         }
     })
     .catch(error => {
         updateApiStatus('offline');
         console.warn('API health check failed:', error);
+        // Don't show toast on every check, only if status changed
+        if (state.apiStatus !== 'offline') {
+            showToast('API Offline', 'Unable to connect to calculator service', 'error');
+        }
     });
 }
 
@@ -192,7 +206,7 @@ function getCacheKey(height, width, resolution, sides, customerType) {
     return `${height}-${width}-${resolution}-${sides}-${customerType}`;
 }
 
-// ==================== API FUNCTIONS (FIXED) ====================
+// ==================== API FUNCTIONS ====================
 async function callQuoteApi(requestData) {
     // Check rate limiting
     const now = Date.now();
@@ -233,7 +247,7 @@ async function callQuoteApi(requestData) {
         timestamp: new Date().toISOString()
     };
     
-    // Make API call with timeout - NO 'no-cors' mode!
+    // Make API call with timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
     
@@ -242,7 +256,6 @@ async function callQuoteApi(requestData) {
         
         const response = await fetch(CONFIG.GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            // NO 'mode: no-cors' - let it use default CORS mode
             headers: {
                 'Content-Type': 'application/json'
             },
@@ -304,45 +317,6 @@ async function callQuoteApi(requestData) {
         console.error('API call failed:', error);
         throw error;
     }
-}
-
-// ==================== TEST FUNCTION ====================
-function testApiDirectly() {
-    const testData = {
-        height: 22,
-        width: 33,
-        resolution: 'P6',
-        sides: 'Single',
-        customerType: 'Dealer',
-        apiKey: CONFIG.API_KEY
-    };
-    
-    console.log('Testing API with 22x33...');
-    
-    fetch(CONFIG.GOOGLE_SCRIPT_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(testData)
-    })
-    .then(response => {
-        console.log('Response status:', response.status, response.statusText);
-        return response.text();
-    })
-    .then(text => {
-        console.log('Raw response:', text);
-        try {
-            const data = JSON.parse(text);
-            console.log('Parsed response:', data);
-            console.log(`Total panels: ${data.totalPanels}`);
-            console.log(`Success: ${data.success}`);
-            if (data.error) console.log('Error:', data.error);
-        } catch (e) {
-            console.error('Failed to parse JSON:', e);
-        }
-    })
-    .catch(error => console.error('Fetch error:', error));
 }
 
 // ==================== MAIN CALCULATION FUNCTION ====================
@@ -430,6 +404,8 @@ async function calculateQuote() {
             errorMessage = 'Too many requests. Please wait a moment before trying again.';
         } else if (errorMessage.includes('CORS') || errorMessage.includes('Network')) {
             errorMessage = 'Network error. Check API URL and CORS settings.';
+        } else if (errorMessage.includes('Invalid API key')) {
+            errorMessage = 'API authentication failed. Please contact support.';
         }
         
         showToast('Calculation Failed', errorMessage, 'error');
@@ -490,25 +466,31 @@ function showEstimatedCalculation(height, width) {
     const panelMultiplier = sides.includes('Double') ? 2 : 1;
     const markup = customerType === 'Dealer' ? 1.65 : 2.1;
     
-    // Simple estimation
-    const estimatedPanels = Math.ceil(area / 16);
-    const panelCost = (area * 2.5 * panelMultiplier) * 1.2;
-    const resolutionCost = (area * 1.0 * panelMultiplier) * 1.2;
-    const finalPrice = (panelCost + resolutionCost + 12 + 10) * markup;
+    // Simple estimation (based on 4x4 panels)
+    const panelSize = 16; // 4x4 panel in square feet
+    const estimatedPanels = Math.ceil((area * panelMultiplier) / panelSize);
+    const panelCost = estimatedPanels * 100 * panelMultiplier;
+    const resolutionCost = area * 10 * panelMultiplier;
+    const sensorCost = (sides === "Double (M/M)") ? 20 : (panelMultiplier === 2 ? 20 : 10);
+    const computerCost = (sides === "Double (M/M)") ? 20 : 10;
+    
+    const finalPrice = Math.round((panelCost + resolutionCost + sensorCost + computerCost) * markup * 100) / 100;
     
     const estimatedData = {
         success: true,
         finalPrice: finalPrice,
-        panelDetails: `Approximately ${estimatedPanels} panels needed`,
-        panelCost: panelCost,
-        resolutionCost: resolutionCost,
-        sensorCost: 12.00,
-        computerCost: 10.00,
+        panelDetails: `Approximately ${estimatedPanels} panels (estimate)`,
+        panelCost: Math.round(panelCost * 100) / 100,
+        resolutionCost: Math.round(resolutionCost * 100) / 100,
+        sensorCost: Math.round(sensorCost * 100) / 100,
+        computerCost: computerCost,
         totalPanels: estimatedPanels,
         totalArea: area * panelMultiplier,
         panelMultiplier: panelMultiplier,
         markupApplied: markup,
         importTaxRate: 0.20,
+        calculationMethod: 'fallback',
+        dimensions: `${height}x${width}`,
         isEstimate: true
     };
     
@@ -738,7 +720,17 @@ function setupEventListeners() {
         }
     });
     
-    // Preset buttons (optional)
+    // Calculate button
+    if (elements.calculateBtn) {
+        elements.calculateBtn.addEventListener('click', calculateQuote);
+    }
+    
+    // Save button
+    if (elements.saveBtn) {
+        elements.saveBtn.addEventListener('click', saveToHubSpot);
+    }
+    
+    // Add preset buttons
     addPresetButtons();
 }
 
@@ -755,11 +747,14 @@ function autoCalculateIfReady() {
                 document.activeElement !== elements.width) {
                 calculateQuote();
             }
-        }, 500);
+        }, 1000);
     }
 }
 
 function addPresetButtons() {
+    // Check if preset container already exists
+    if (document.querySelector('.preset-buttons')) return;
+    
     // Add common preset buttons
     const presets = [
         { label: '22×33', height: 22, width: 33 },
@@ -774,6 +769,7 @@ function addPresetButtons() {
     
     presets.forEach(preset => {
         const btn = document.createElement('button');
+        btn.type = 'button';
         btn.className = 'btn btn-sm btn-outline-primary ms-2';
         btn.textContent = preset.label;
         btn.onclick = () => {
@@ -822,8 +818,8 @@ function initializeApp() {
         }
     }
     
-    // Periodic API health check
-    setInterval(checkApiHealth, 5 * 60 * 1000); // Every 5 minutes
+    // Periodic API health check (every 5 minutes)
+    setInterval(checkApiHealth, 5 * 60 * 1000);
     
     // Show welcome message
     setTimeout(() => {
@@ -839,4 +835,9 @@ function initializeApp() {
 }
 
 // ==================== START APPLICATION ====================
-document.addEventListener('DOMContentLoaded', initializeApp);
+// Wait for DOM to be fully loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+}
